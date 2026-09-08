@@ -1,0 +1,24 @@
+# Swift / SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+
+# Build output
+*.app
+
+# macOS
+.DS_Store
+
+# Agent and editor state. These record local paths, machine-specific
+# workflow notes, and permission grants — none of which belong in a public
+# repository, and all of which are easy to commit by accident.
+CLAUDE.md
+.claude/
+.cursor/
+.vscode/
+.idea/
