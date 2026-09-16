@@ -28,17 +28,17 @@ struct TunnelDirectoryTests {
     /// knows its connector ID but not the name of the tunnel it serves.
     @Test func namesALocalConnectorByItsConnectorID() {
         let directory = TunnelDirectory(tunnels: [
-            summary(name: "insta", connectorIDs: ["conn-a"]),
+            summary(name: "web-origin", connectorIDs: ["conn-a"]),
             summary(name: "other", connectorIDs: ["conn-b"]),
         ])
-        #expect(directory.name(for: connector(connectorID: "conn-a")) == "insta")
+        #expect(directory.name(for: connector(connectorID: "conn-a")) == "web-origin")
         #expect(directory.name(for: connector(connectorID: "conn-b")) == "other")
     }
 
     /// A connector whose metrics could not be read has no connector ID, so it
     /// cannot be joined — and must not be matched to an arbitrary tunnel.
     @Test func doesNotGuessWhenTheConnectorIDIsUnknown() {
-        let directory = TunnelDirectory(tunnels: [summary(name: "insta", connectorIDs: ["conn-a"])])
+        let directory = TunnelDirectory(tunnels: [summary(name: "web-origin", connectorIDs: ["conn-a"])])
         #expect(directory.name(for: connector(connectorID: nil)) == nil)
         #expect(directory.name(for: connector(connectorID: "unrelated")) == nil)
     }

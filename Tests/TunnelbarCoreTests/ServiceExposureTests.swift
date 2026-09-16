@@ -57,7 +57,7 @@ struct ExposureMapTests {
     @Test func matchesAPublishedPortToItsHostname() {
         let map = ExposureMap(
             rulesByTunnel: ["t1": [
-                IngressRule(hostname: "insta.example.com", service: "http://localhost:3000"),
+                IngressRule(hostname: "app.example.com", service: "http://localhost:3000"),
                 IngressRule(hostname: nil, service: "http_status:404"),
             ]],
             namesByTunnel: ["t1": "web-origin"])
@@ -65,7 +65,7 @@ struct ExposureMapTests {
         let exposures = map.exposures(for: [service(3000), service(5432, "postgres")])
         let published = exposures.first { $0.service.port == 3000 }
         #expect(published?.isExposed == true)
-        #expect(published?.bindings.first?.hostname == "insta.example.com")
+        #expect(published?.bindings.first?.hostname == "app.example.com")
         #expect(published?.bindings.first?.tunnelName == "web-origin")
 
         #expect(exposures.first { $0.service.port == 5432 }?.isExposed == false)
