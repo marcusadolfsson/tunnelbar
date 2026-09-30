@@ -15,9 +15,12 @@ SWIFT ?= swift
 # Picks the first usable identity, preferring Developer ID (required to share
 # the app with anyone else) over Apple Development (fine locally). Falls back to
 # ad-hoc so the build still works on a machine with no certificate at all.
+# The two lookups are chained with ||, not ';': separated by a semicolon both
+# would run, and on a machine holding both certificates make would join the two
+# names into one nonsense string that codesign rejects with "no identity found".
 SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
-	| awk -F'"' '/Developer ID Application/ {print $$2; exit}'; \
-	security find-identity -v -p codesigning 2>/dev/null \
+	| awk -F'"' '/Developer ID Application/ {print $$2; exit}' | grep . \
+	|| security find-identity -v -p codesigning 2>/dev/null \
 	| awk -F'"' '/Apple Development/ {print $$2; exit}')
 CODESIGN_ID := $(if $(SIGN_IDENTITY),$(SIGN_IDENTITY),-)
 CONFIG ?= debug
