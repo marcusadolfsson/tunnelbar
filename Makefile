@@ -23,7 +23,27 @@ CODESIGN_ID := $(if $(SIGN_IDENTITY),$(SIGN_IDENTITY),-)
 CONFIG ?= debug
 BINDIR := .build/$(CONFIG)
 APP := Tunnelbar.app
+EXE_NAME := Tunnelbar
 INSTALL_DIR ?= /Applications
+
+# Universal: Apple Silicon and Intel. A multi-arch build lands under
+# .build/apple/Products/Release rather than .build/release.
+ARCHS := --arch arm64 --arch x86_64
+RELEASE_BIN := .build/apple/Products/Release/$(EXE_NAME)
+
+# Ad-hoc signing cannot carry a secure timestamp, and asking for one fails the
+# build. A real identity always should: notarisation requires it.
+TIMESTAMP := $(if $(SIGN_IDENTITY),--timestamp,--timestamp=none)
+
+# Notarisation. Create the profile once, locally:
+#   xcrun notarytool store-credentials tunnelbar \
+#     --apple-id <APPLE_ID> --team-id ZP8TR4ZYDR --password <app-specific password>
+# No secret is stored in this file. CI passes credentials instead (see
+# .github/workflows/release.yml).
+NOTARY_PROFILE ?= tunnelbar
+NOTARY_AUTH ?= --keychain-profile "$(NOTARY_PROFILE)"
+DIST_ZIP := dist/Tunnelbar.zip
+DMG := dist/Tunnelbar.dmg
 
 .DEFAULT_GOAL := help
 
@@ -101,6 +121,43 @@ install: app ## Build, sign, and install into $(INSTALL_DIR)
 		echo "  \"$(INSTALL_DIR)/$(APP)/Contents/MacOS/Tunnelbar\" --enable-login-item"; \
 	fi
 
+.PHONY: dmg
+dmg: ## Package the built app as a drag-to-Applications disk image in dist/
+	@test -d "$(APP)" || { echo "Build the app first (make app)"; exit 1; }
+	rm -rf dist/dmg-root "$(DMG)"
+	mkdir -p dist/dmg-root
+	cp -R "$(APP)" dist/dmg-root/
+	ln -s /Applications dist/dmg-root/Applications
+	hdiutil create -volname "Tunnelbar" -srcfolder dist/dmg-root -fs HFS+ -format UDZO -ov "$(DMG)"
+	rm -rf dist/dmg-root
+	codesign --force $(TIMESTAMP) --sign "$(CODESIGN_ID)" "$(DMG)"
+	@echo "Built $(DMG)"
+
+.PHONY: notarize
+notarize: app ## Notarize and staple the app and its DMG (needs Developer ID)
+# Refuse early rather than submitting something Apple will reject: only a
+# Developer ID Application certificate can be notarised.
+	@case "$(CODESIGN_ID)" in "Developer ID Application"*) ;; \
+		*) echo "Notarisation needs a Developer ID Application certificate; signing identity is: $(CODESIGN_ID)"; exit 1;; esac
+	@xcrun notarytool history $(NOTARY_AUTH) >/dev/null 2>&1 || { \
+		echo "Notarisation credentials not usable. Create the profile once with:"; \
+		echo "  xcrun notarytool store-credentials $(NOTARY_PROFILE) --apple-id <APPLE_ID> --team-id ZP8TR4ZYDR --password <app-specific password>"; exit 1; }
+# 1. The app first, so its ticket is already stapled inside the DMG.
+	mkdir -p dist
+	rm -f "$(DIST_ZIP)"
+	ditto -c -k --keepParent "$(APP)" "$(DIST_ZIP)"
+	xcrun notarytool submit "$(DIST_ZIP)" $(NOTARY_AUTH) --wait
+	xcrun stapler staple "$(APP)"
+	rm -f "$(DIST_ZIP)"
+# 2. The DMG around the stapled app, so it installs cleanly offline too.
+	$(MAKE) --no-print-directory dmg
+	xcrun notarytool submit "$(DMG)" $(NOTARY_AUTH) --wait
+	xcrun stapler staple "$(DMG)"
+	xcrun stapler validate "$(DMG)"
+	spctl --assess --type open --context context:primary-signature --verbose=2 "$(DMG)"
+	spctl --assess --type execute --verbose=2 "$(APP)"
+	@echo "Notarised: $(DMG)"
+
 .PHONY: identities
 identities: ## Show available code signing identities
 	@security find-identity -v -p codesigning
@@ -108,7 +165,7 @@ identities: ## Show available code signing identities
 .PHONY: clean
 clean: ## Remove build products
 	$(SWIFT) package clean
-	rm -rf .build $(APP)
+	rm -rf .build $(APP) dist
 
 # --- App bundle -------------------------------------------------------------
 # Assembles $(APP) from the built GUI binary plus an Info.plist with
@@ -116,21 +173,18 @@ clean: ## Remove build products
 # discovery is deliberately built and verified before any UI.
 
 .PHONY: app
-app: ## Assemble Tunnelbar.app (requires the GUI target, not yet written)
-	@if [ ! -d Sources/Tunnelbar ]; then \
-		echo "No Sources/Tunnelbar yet — the MenuBarExtra target lands after"; \
-		echo "discovery is verified. Run 'make discover' meanwhile."; \
-		exit 1; \
-	fi
-	$(SWIFT) build -c release
+app: ## Build a universal Tunnelbar.app and sign it
+	$(SWIFT) build -c release $(ARCHS)
 	rm -rf $(APP)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
-	cp .build/release/Tunnelbar $(APP)/Contents/MacOS/Tunnelbar
+	cp $(RELEASE_BIN) $(APP)/Contents/MacOS/$(EXE_NAME)
+	@lipo -info $(APP)/Contents/MacOS/$(EXE_NAME)
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
 	@echo "Signing with: $(CODESIGN_ID)"
-# --options runtime enables the hardened runtime, which notarisation requires
-# and which costs nothing here.
-	codesign --force --options runtime --sign "$(CODESIGN_ID)" \
+# The hardened runtime is required for notarisation. Nothing executable is
+# bundled inside the app — cloudflared is launched from its own install
+# location — so there is no nested code to sign first.
+	codesign --force --options runtime $(TIMESTAMP) --sign "$(CODESIGN_ID)" \
 		--identifier com.adolfsson.tunnelbar $(APP)
 	@codesign --verify --strict --verbose=1 $(APP)
 	@codesign -dv $(APP) 2>&1 | grep -E "Identifier|Authority|TeamIdentifier" | head -4

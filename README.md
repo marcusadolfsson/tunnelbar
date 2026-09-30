@@ -29,6 +29,24 @@ prompts and unreliable login-item registration; any real certificate avoids
 both. Sharing the app with another Mac requires Developer ID plus
 notarisation. The hardened runtime is already enabled.
 
+### Releases
+
+Tagged releases publish a notarized, universal (Apple Silicon and Intel) DMG,
+built by `.github/workflows/release.yml`. Download it from the Releases page
+and drag Tunnelbar to Applications; Gatekeeper accepts it without a prompt.
+
+Building a release locally needs a Developer ID Application certificate and
+notarization credentials, stored once:
+
+```bash
+xcrun notarytool store-credentials tunnelbar \
+  --apple-id <APPLE_ID> --team-id ZP8TR4ZYDR --password <app-specific-password>
+make notarize
+```
+
+`make notarize` refuses to run unless the signing identity is Developer ID.
+`make dmg` packages whatever `make app` produced, without notarizing it.
+
 ### Make targets
 
 | Target | Effect |
@@ -38,7 +56,9 @@ notarisation. The hardened runtime is already enabled.
 | `make check` | Test, then print live discovery |
 | `make discover` | Print discovery JSON once |
 | `make watch` | Print discovery JSON every 10s |
-| `make app` | Build and sign `Tunnelbar.app` |
+| `make app` | Build and sign a universal `Tunnelbar.app` |
+| `make dmg` | Package the built app as a DMG in `dist/` |
+| `make notarize` | Notarize and staple the app and its DMG |
 | `make install` | Build, sign, install to `/Applications` |
 | `make identities` | List code signing identities |
 | `make release` | Optimised build |

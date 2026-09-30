@@ -10,6 +10,7 @@ DerivedData/
 
 # Build output
 *.app
+dist/
 
 # macOS
 .DS_Store
