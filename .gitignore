@@ -18,7 +18,11 @@ dist/
 # Agent and editor state. These record local paths, machine-specific
 # workflow notes, and permission grants — none of which belong in a public
 # repository, and all of which are easy to commit by accident.
-CLAUDE.md
+# The private companion repo (tunnelbar-build) is cloned to .private/, and
+# CLAUDE.md and .claude/skills are symlinks into it.
+/.private/
+/CLAUDE.md
+/CLAUDE.local.md
 .claude/
 .cursor/
 .vscode/
