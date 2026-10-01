@@ -179,6 +179,10 @@ struct SettingsView: View {
                  + "else to fill in.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                // Without this the text is truncated to a single line: the
+                // window sizes to its content, so a Text that does not claim
+                // its natural height simply loses the rest.
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 SecureField("Paste tunnel token", text: $tunnelTokenInput)
