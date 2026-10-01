@@ -7,7 +7,10 @@ struct MenuContentView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var quickTunnelPort = "8080"
     @State private var isStarting = false
-    @State private var servicesExpanded = false
+    // Persisted, not @State: MenuBarExtra rebuilds its content view every time
+    // the menu opens, so plain view state collapses the list again on each
+    // open and the services look like they are missing.
+    @AppStorage("servicesExpanded") private var servicesExpanded = false
 
     /// Resolves the account automatically, so no account ID is needed — and
     /// none is stored.
